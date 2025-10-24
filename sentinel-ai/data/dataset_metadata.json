@@ -1,0 +1,28 @@
+{
+  "dataset_name": "computingvictor/transactions-fraud-datasets",
+  "original_file": "/Users/anvitayerramsetty/.cache/kagglehub/datasets/computingvictor/transactions-fraud-datasets/versions/1/users_data.csv",
+  "processed_file": "data/fraud_dataset.csv",
+  "sample_file": "data/fraud_sample.csv",
+  "total_rows": 2000,
+  "total_columns": 14,
+  "columns": [
+    "id",
+    "current_age",
+    "retirement_age",
+    "birth_year",
+    "birth_month",
+    "gender",
+    "address",
+    "latitude",
+    "longitude",
+    "per_capita_income",
+    "yearly_income",
+    "total_debt",
+    "credit_score",
+    "num_credit_cards"
+  ],
+  "shape": [
+    2000,
+    14
+  ]
+}

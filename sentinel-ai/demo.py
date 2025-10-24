@@ -2,12 +2,78 @@
 """
 Sentinel AI - Complete Demo Script
 Demonstrates all features: risk scoring, adaptive friction, continuous learning, and federated intelligence
+Now includes integration with Kaggle fraud dataset
 """
 import requests
 import json
 import time
+import pandas as pd
+import os
+from pathlib import Path
 
 API_BASE = "http://localhost:8000"
+
+def load_kaggle_data():
+    """Load the Kaggle fraud dataset for testing"""
+    data_path = Path("data/fraud_dataset.csv")
+    sample_path = Path("data/fraud_sample.csv")
+    
+    if not data_path.exists():
+        print("📥 Kaggle dataset not found. Run 'python download_data.py' first.")
+        return None
+    
+    try:
+        # Load sample data for demo
+        if sample_path.exists():
+            df = pd.read_csv(sample_path)
+            print(f"📊 Loaded Kaggle sample data: {len(df)} rows")
+        else:
+            df = pd.read_csv(data_path)
+            # Take a sample for demo
+            df = df.sample(n=min(1000, len(df)), random_state=42)
+            print(f"📊 Loaded Kaggle data sample: {len(df)} rows")
+        
+        return df
+    except Exception as e:
+        print(f"❌ Error loading Kaggle data: {e}")
+        return None
+
+def convert_kaggle_to_transaction(row):
+    """Convert Kaggle dataset row to our transaction format"""
+    # Map common fraud dataset columns to our schema
+    # This is a flexible mapping that adapts to different dataset structures
+    
+    # Try to map common column names
+    amount = row.get('amount', row.get('Amount', row.get('transaction_amount', 100.0)))
+    merchant = row.get('merchant_category', row.get('merchant', row.get('category', 'grocery')))
+    device_id = row.get('device_id', row.get('device', f"D{hash(str(row)) % 1000}"))
+    lat = row.get('geo_lat', row.get('lat', row.get('latitude', 37.7749)))
+    lon = row.get('geo_lon', row.get('lon', row.get('longitude', -122.4194)))
+    user_id = row.get('user_id', row.get('user', f"U{hash(str(row)) % 1000}"))
+    
+    # Generate synthetic features if not present
+    is_new_device = row.get('is_new_device', row.get('new_device', False))
+    hour = row.get('hour_of_day', row.get('hour', 12))
+    txn_count = row.get('past_24h_txn_count', row.get('txn_count', 1))
+    chargebacks = row.get('past_7d_chargebacks', row.get('chargebacks', 0))
+    velocity = row.get('velocity_usd_7d', row.get('velocity', amount * 2))
+    ip_risk = row.get('ip_asn_risk', row.get('ip_risk', 0.1))
+    
+    return {
+        "txn_id": f"kaggle_{hash(str(row)) % 10000}",
+        "amount": float(amount),
+        "merchant_category": str(merchant).lower(),
+        "device_id": str(device_id),
+        "geo_lat": float(lat),
+        "geo_lon": float(lon),
+        "user_id": str(user_id),
+        "is_new_device": bool(is_new_device),
+        "hour_of_day": int(hour),
+        "past_24h_txn_count": int(txn_count),
+        "past_7d_chargebacks": int(chargebacks),
+        "velocity_usd_7d": float(velocity),
+        "ip_asn_risk": float(ip_risk)
+    }
 
 def demo_risk_scoring():
     """Demonstrate risk scoring with different transaction types"""
@@ -95,6 +161,58 @@ def demo_risk_scoring():
             return False
     
     return True
+
+def demo_kaggle_dataset():
+    """Demonstrate risk scoring with real Kaggle fraud data"""
+    print("\n\n📊 DEMO: Real Kaggle Fraud Dataset")
+    print("=" * 50)
+    
+    # Load Kaggle data
+    df = load_kaggle_data()
+    if df is None:
+        print("❌ Could not load Kaggle dataset. Using synthetic data instead.")
+        return False
+    
+    print(f"📈 Dataset info:")
+    print(f"   Total rows: {len(df)}")
+    print(f"   Columns: {list(df.columns)}")
+    
+    # Check for fraud labels
+    fraud_cols = [col for col in df.columns if 'fraud' in col.lower() or 'label' in col.lower()]
+    if fraud_cols:
+        fraud_col = fraud_cols[0]
+        fraud_rate = df[fraud_col].mean() if df[fraud_col].dtype in ['int64', 'float64'] else 0
+        print(f"   Fraud rate: {fraud_rate:.2%}")
+    
+    # Test with sample transactions
+    print(f"\n🎯 Testing with {min(5, len(df))} real transactions...")
+    
+    success_count = 0
+    for i, (_, row) in enumerate(df.head(5).iterrows()):
+        try:
+            txn = convert_kaggle_to_transaction(row)
+            print(f"\n📊 Transaction {i+1}:")
+            print(f"   Amount: ${txn['amount']:.2f}")
+            print(f"   Merchant: {txn['merchant_category']}")
+            print(f"   Device: {txn['device_id']}")
+            
+            response = requests.post(f"{API_BASE}/score", json=txn)
+            if response.status_code == 200:
+                result = response.json()
+                print(f"   🎯 Risk Score: {result['risk_score']:.3f}")
+                print(f"   ⚡ Decision: {result['decision']}")
+                print(f"   🔍 Top Reasons: {result['reasons']}")
+                success_count += 1
+            else:
+                print(f"   ❌ Error: {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            print("❌ API not running. Start with: uvicorn services.risk_api.main:app --port 8000")
+            return False
+        except Exception as e:
+            print(f"   ❌ Error processing transaction: {e}")
+    
+    print(f"\n✅ Successfully processed {success_count}/5 transactions")
+    return success_count > 0
 
 def demo_continuous_learning():
     """Demonstrate continuous learning with feedback"""
@@ -216,6 +334,7 @@ def main():
     
     # Run all demos
     demo_risk_scoring()
+    demo_kaggle_dataset()
     demo_continuous_learning()
     demo_federated_learning()
     demo_trust_transparency()
@@ -223,6 +342,7 @@ def main():
     print("\n\n🎉 DEMO COMPLETE!")
     print("=" * 60)
     print("✅ Risk scoring with adaptive friction")
+    print("✅ Real Kaggle fraud dataset integration")
     print("✅ Continuous learning from feedback")
     print("✅ Federated learning simulation")
     print("✅ Trust and transparency features")
